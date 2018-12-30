@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 from example.data_reader import DataParser
 from example.data_reader import FeatureDictionary
+from example import config
 
 
 def _load_data():
