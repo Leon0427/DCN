@@ -8,10 +8,11 @@
 import tensorflow as tf
 from tensorflow.contrib.layers.python.layers import batch_norm
 import numpy as np
+from time import time
 
 
 class DeepCrossNetwork(object):
-    def __init__(self, field_dim, feature_dim, embedding_dim, dnn_wides, cross_wides,train_phase,
+    def __init__(self, field_dim, feature_dim, embedding_dim, dnn_wides,dropout_deep, cross_wides,train_phase,
                  batch_norm=0,
                  l2_reg=0.0,
                  batch_norm_decay=0.995,
@@ -26,6 +27,7 @@ class DeepCrossNetwork(object):
         self.cross_wides = cross_wides
         self.train_phase = train_phase
         self.dnn_wides = dnn_wides
+        self.dropout_deep = dropout_deep
         self.cross_deep = len(cross_wides)
         self.batch_norm = batch_norm
         self.l2_reg = l2_reg
@@ -159,6 +161,51 @@ class DeepCrossNetwork(object):
                                   is_training=False, reuse=True, trainable=True, scope=scope_bn)
         z = tf.cond(train_phase, lambda: bn_train, lambda: bn_inference)
         return z
+
+    def shuffle_in_unison_scale(self, a, b, c):
+        state = np.random.get_state()
+        np.random.shuffle(a)
+        np.random.set_state(state)
+        np.random.shuffle(b)
+        np.random.set_state(state)
+        np.random.shuffle(c)
+
+    def get_batch(self, Xi, Xv, y, batch_size, index):
+        start = index * batch_size
+        end = (index + 1) * batch_size
+        end = end if end < len(y) else len(y)
+        return Xi[start: end], Xv[start:end], [[y_] for y_ in y[start:end]]
+
+    def fit_on_batch(self, Xi, Xv, y):
+        feed_dict = {
+            self.feature_index:Xi,
+            self.feature_value:Xv,
+            self.label:y,
+            self.dropout_keep_deep:self.dropout_deep,
+            self.train_phase:True
+        }
+        loss, opt = self.sess.run((self.loss, self.optimizer), feed_dict=feed_dict)
+        return loss
+
+    def evaluate(self):
+        pass
+
+    def predict(self, Xi, Xv):
+        dummy_y = [1] * len(Xi)
+        batch_index = 0
+        Xi_batch, Xv_batch, y_batch = self.get_batch(Xi, Xv, dummy_y, self.batch_size, batch_index)
+
+
+    def fit(self, Xi_train, Xv_train, y_train, Xi_valid=None, Xv_valid=None, y_valid=None,
+            early_stopping=False, refit=False):
+        has_valid = Xv_valid is not None
+        for epoch in range(self.epoch):
+            t1 = time()
+            self.shuffle_in_unison_scale(Xi_train, Xv_train, y_train)
+            total_batch = int(len(y_train)/self.batch_size)
+            for i in range(total_batch):
+                Xi_batch, Xv_batch, y_batch = self.get_batch(Xi_train, Xv_train, y_train, self.batch_size, i)
+                self.fit_on_batch(Xi_batch, Xv_batch, y_batch)
 
 
 if __name__ == '__main__':
