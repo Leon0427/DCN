@@ -10,7 +10,8 @@ CATEGORICAL_COLS = [
     # 'ps_car_07_cat', 'ps_car_08_cat', 'ps_car_09_cat',
     # 'ps_car_10_cat', 'ps_car_11_cat',
 ]
-
+RANDOM_SEED = 2018
+NUM_SPLITS = 3
 NUMERIC_COLS = [
     # # binary
     # "ps_ind_06_bin", "ps_ind_07_bin", "ps_ind_08_bin",
