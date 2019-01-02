@@ -7,6 +7,7 @@
 # @Software: PyCharm
 import tensorflow as tf
 from tensorflow.contrib.layers.python.layers import batch_norm
+from sklearn.metrics import roc_auc_score
 import numpy as np
 from time import time
 
@@ -19,7 +20,9 @@ class DeepCrossNetwork(object):
                  random_seed=2018,
                  learning_rate=0.001,
                  epoch=30,
-                 batch_size=1024
+                 batch_size=1024,
+                 verbose = 1,
+                 eval_metric = roc_auc_score
                  ):
         self.field_dim = field_dim
         self.feature_dim = feature_dim
@@ -37,6 +40,11 @@ class DeepCrossNetwork(object):
         self.learning_rate = learning_rate
         self.epoch = epoch
         self.batch_size = batch_size
+        self.verbose = verbose
+        self.train_result, self.valid_result = [], []
+        self.eval_metric = eval_metric
+
+        self._init_graph()
 
     def _init_graph(self):
         self.graph = tf.Graph()
@@ -187,14 +195,51 @@ class DeepCrossNetwork(object):
         loss, opt = self.sess.run((self.loss, self.optimizer), feed_dict=feed_dict)
         return loss
 
-    def evaluate(self):
-        pass
+    def evaluate(self,Xi, Xv, y):
+        y_pred =self.predict(Xi, Xv)
+        return self.eval_metric(y, y_pred)
 
     def predict(self, Xi, Xv):
         dummy_y = [1] * len(Xi)
         batch_index = 0
         Xi_batch, Xv_batch, y_batch = self.get_batch(Xi, Xv, dummy_y, self.batch_size, batch_index)
+        y_pred = None
+        while(len(Xi_batch)) > 0:
+            num_batch = len(y_batch)
+            feed_dict ={
+                self.feature_index:Xi_batch,
+                self.feature_value:Xv_batch,
+                self.label: y_batch,
+                self.dropout_keep_deep:[1.0]*len(self.dropout_keep_deep),
+                self.train_phase : False
+            }
+            batch_out = self.sess.run(self.out, feed_dict=feed_dict)
 
+            if batch_index == 0:
+                y_pred =np.reshape(batch_out, (num_batch, ))
+            else:
+                y_pred = np.concatenate((y_pred, np.reshape(batch_out, (num_batch, ))))
+
+            batch_index += 1
+            Xi_batch, Xv_batch, y_batch = self.get_batch(Xi, Xv, dummy_y, self.batch_size, batch_index)
+
+            return y_pred
+
+    def train_termination(self, valid_result):
+        if len(valid_result) > 5:
+            if self.greater_is_better:
+                if valid_result[-1] < valid_result[-2] and \
+                    valid_result[-2] < valid_result[-3] and \
+                    valid_result[-3] < valid_result[-4] and \
+                    valid_result[-4] < valid_result[-5]:
+                    return True
+            else:
+                if valid_result[-1] > valid_result[-2] and \
+                    valid_result[-2] > valid_result[-3] and \
+                    valid_result[-3] > valid_result[-4] and \
+                    valid_result[-4] > valid_result[-5]:
+                    return True
+        return False
 
     def fit(self, Xi_train, Xv_train, y_train, Xi_valid=None, Xv_valid=None, y_valid=None,
             early_stopping=False, refit=False):
@@ -206,6 +251,45 @@ class DeepCrossNetwork(object):
             for i in range(total_batch):
                 Xi_batch, Xv_batch, y_batch = self.get_batch(Xi_train, Xv_train, y_train, self.batch_size, i)
                 self.fit_on_batch(Xi_batch, Xv_batch, y_batch)
+
+            # evaluate training and evaluation dataset
+            train_result= self.evaluate(Xi_train, Xv_train, y_train)
+            self.train_result.append(train_result)
+            if has_valid:
+                valid_result = self.evaluate(Xi_valid, Xv_valid, y_valid)
+                self.valid_result.append(valid_result)
+            if self.verbose > 0 and epoch % self.verbose == 0:
+                if has_valid:
+                    print("[%d] train-result=%.4f, valid-result=%.4f [%.1f s]"
+                        % (epoch + 1, train_result, valid_result, time() - t1))
+                else:
+                    print("[%d] train-result=%.4f [%.1f s]"
+                          % (epoch + 1, train_result, time() - t1))
+            if has_valid and early_stopping and self.train_termination(self.valid_result):
+                break
+
+        if has_valid and refit:
+            if self.greater_is_better:
+                best_valid_score = max(self.valid_result)
+            else:
+                best_valid_score = min(self.valid_result)
+            best_epoch = self.valid_result.index(best_valid_score)
+            best_train_score = self.train_result[best_epoch]
+            Xi_train = Xi_train + Xi_valid
+            Xv_train = Xv_train + Xv_valid
+            y_train = y_train + y_valid
+            for epoch in range(100):
+                self.shuffle_in_unison_scale(Xi_train, Xv_train, y_train)
+                total_batch = int(len(y_train) / self.batch_size)
+                for i in range(total_batch):
+                    Xi_batch, Xv_batch, y_batch = self.get_batch(Xi_train, Xv_train, y_train, self.batch_size, i)
+                    self.fit_on_batch(Xi_batch, Xv_batch, y_batch)
+                # check
+                train_result = self.evaluate(Xi_train, Xv_train, y_train)
+                if abs(train_result - best_valid_score) < 0.001 or \
+                    (self.greater_is_better and train_result >best_train_score) or \
+                    ((not self.greater_is_better) and train_result < best_train_score):
+                    break
 
 
 if __name__ == '__main__':

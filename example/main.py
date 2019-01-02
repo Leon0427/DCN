@@ -12,7 +12,7 @@ from sklearn.model_selection import StratifiedKFold
 from example.data_reader import DataParser
 from example.data_reader import FeatureDictionary
 from example import config
-from ..deep_and_cross import DeepCrossNetwork
+from deep_and_cross import DeepCrossNetwork
 
 
 def _load_data():
@@ -67,7 +67,8 @@ if __name__ == '__main__':
         "l2_reg":0.01,
         "random_seed":2018,
         "feature_dim":fd.feature_dim,
-        "field_dim":len(Xi_train[0])
+        "field_dim":len(Xi_train[0]),
+        "verbose":True
         }
 
     _get = lambda x, l: [x[i] for i in l]
@@ -79,6 +80,12 @@ if __name__ == '__main__':
         Xi_train_, Xv_train_, y_train_ = _get(Xi_train, train_idx), _get(Xv_train, train_idx), _get(y_train, train_idx)
         Xi_valid_, Xv_valid_, y_valid_ = _get(Xi_train, valid_idx), _get(Xv_train, valid_idx), _get(y_train, valid_idx)
         dcn = DeepCrossNetwork(**dcn_params)
+        dcn.fit(Xi_train_, Xv_train_, y_train_, Xi_valid_, Xv_valid_, y_valid_)
+
+        y_train_meta[valid_idx, 0] = dcn.predict(Xi_valid_, Xv_valid_)
+        y_test_meta[:,0] += dcn.predict(Xi_test, Xv_test)
+
+
 
 
 
