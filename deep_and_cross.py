@@ -325,7 +325,3 @@ class DeepCrossNetwork(object):
                     (self.greater_is_better and train_result >best_train_score) or \
                     ((not self.greater_is_better) and train_result < best_train_score):
                     break
-
-
-if __name__ == '__main__':
-    a = DeepCrossNetwork()

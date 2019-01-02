@@ -79,7 +79,7 @@ if __name__ == '__main__':
         "feature_dim":fd.feature_dim,
         "field_dim":len(Xi_train[0]),
         "verbose":True,
-        "use_deep":False,
+        "use_deep":True,
         "use_cross":True
         }
 
