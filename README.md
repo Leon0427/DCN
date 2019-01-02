@@ -56,6 +56,7 @@ DCN/
 
 ### 4. embedding and stacking layer
 
+所有第1.节中提到的四个主要结构都在deep_and_cross.py中的_init_graph方法中实现：
 ```python
     def _init_graph(self):
         self.graph = tf.Graph()
@@ -109,3 +110,21 @@ DCN/
                 concat_input = self.y_cross
                 self.out = tf.add(tf.matmul(concat_input, self.weights["concat_projection"]), self.weights["concat_bias"])
 ```
+
+首先我们单独来看embedding layer的代码段：
+```python
+            # 1. embedding layer
+            self.embeddings = tf.nn.embedding_lookup(self.weights["embedding_tensor"], self.feature_index)  #
+            feature_value = tf.reshape(self.feature_value, shape=[-1, self.field_dim, 1])
+            self.embeddings = tf.multiply(self.embeddings, feature_value)  # M * F * K
+```
+> 我们将数据集中的categorical特征one-hot之后的特征总维度设为***M***，将这些特征由1到M进行编号；
+> 将one-hot之前的特征列数设为***F***，每一条样本在输入embedding层时由F个处于(1,M)区间的特征编号```self.feature_index```，以及这些特征对应的值```self.feature_value```表示；
+> 每个one-hot前的特征对应的embedding宽度为***K***
+
+第一行，通过```tf.nn.embedding_lookup```方法来查找、构建原始特征向量对应的embedding向量。```self.weights["embedding_tensor"]```是一个M\*K的矩阵，
+我们暂时不考虑batch样本的情况，设输入了一条样本，它的特征编号由```self.feature_index```(1\*F)表示，通过```tf.nn.embedding_lookup```方法，可以获得一个(F*K,)的向量```embedding```。
+
+第三行，通过矩阵乘法，将第一步获得的```embedding```乘以特征权值，得到embedding layer的输出。
+
+对tensorflow不熟悉的同学，可以自行查找相应方法的api介绍：在ipython中输入```help(tf.nn.embedding_lookup)```即可。
