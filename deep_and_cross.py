@@ -69,10 +69,6 @@ class DeepCrossNetwork(object):
             self.y_deep = tf.nn.dropout(self.y_deep, self.dropout_keep_deep[0])
 
             for i, layer_wide in enumerate(self.dnn_wides):
-                print "in deep %s" % i
-                print self.y_deep.shape.as_list()
-                print self.weights["layer_%d" % i].shape.as_list()
-                print self.weights["bias_%d" % i].shape.as_list()
                 self.y_deep = tf.add(tf.matmul(self.y_deep, self.weights["layer_%d" % i]), self.weights["bias_%d" % i])
                 if self.batch_norm:
                     self.y_deep = self.batch_norm_layer(self.y_deep, train_phase=self.train_phase, scope_bn="bn_%d" % i)
@@ -83,17 +79,11 @@ class DeepCrossNetwork(object):
             self.y_cross = tf.reshape(self.embeddings, shape=[-1, 1, input_size])
             self.y_cross_0 = tf.reshape(self.embeddings, shape=[-1, 1, input_size])
             for i in range(len(self.cross_wides)):
-                print "in cross %d" %i
-                print self.y_cross_0.shape.as_list()
                 x0T_x_x1 = tf.reshape(tf.matmul(self.y_cross_0, self.y_cross, transpose_a=True),shape=[-1, input_size])
-                print x0T_x_x1.shape.as_list()
-                print self.weights["cross_layer_%d" % i].shape.as_list()
                 self.y_cross = tf.add(tf.reshape(tf.matmul(x0T_x_x1, self.weights["cross_layer_%d" % i]),shape=[-1,1,input_size]),
                                       self.y_cross)
                 self.y_cross = tf.add(self.y_cross, self.weights["cross_bias_%d" % i])
-                print "+++",self.y_cross.shape.as_list()
             self.y_cross = tf.reshape(self.y_cross,shape=[-1, self.cross_wides[0]])
-
 
             # 4. concatenate y_deep and y_cross
             log("concatenating y_deep and y_cross")
