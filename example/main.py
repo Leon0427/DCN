@@ -78,7 +78,9 @@ if __name__ == '__main__':
         "random_seed":2018,
         "feature_dim":fd.feature_dim,
         "field_dim":len(Xi_train[0]),
-        "verbose":True
+        "verbose":True,
+        "use_deep":False,
+        "use_cross":True
         }
 
     _get = lambda x, l: [x[i] for i in l]

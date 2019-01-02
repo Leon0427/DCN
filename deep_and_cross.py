@@ -15,6 +15,8 @@ from example.log import log
 
 class DeepCrossNetwork(object):
     def __init__(self, field_dim, feature_dim, embedding_dim, dnn_wides,dropout_deep, cross_wides,
+                 use_deep = True,
+                 use_cross= True,
                  batch_norm=0,
                  l2_reg=0.0,
                  batch_norm_decay=0.995,
@@ -25,6 +27,8 @@ class DeepCrossNetwork(object):
                  verbose = 1,
                  eval_metric = roc_auc_score
                  ):
+        self.use_cross = use_cross
+        self.use_deep = use_deep
         self.field_dim = field_dim
         self.feature_dim = feature_dim
         self.embedding_dim = embedding_dim
@@ -76,19 +80,27 @@ class DeepCrossNetwork(object):
                 self.y_deep = tf.nn.dropout(self.y_deep, self.dropout_keep_deep[1 + i])
             # 3. cross network
             input_size = self.field_dim * self.embedding_dim
-            self.y_cross = tf.reshape(self.embeddings, shape=[-1, 1, input_size])
+            self.y_cross_i = tf.reshape(self.embeddings, shape=[-1, 1, input_size])
+            self.y_cross = tf.reshape(self.embeddings, shape=[-1, input_size])
             self.y_cross_0 = tf.reshape(self.embeddings, shape=[-1, 1, input_size])
             for i in range(len(self.cross_wides)):
-                x0T_x_x1 = tf.reshape(tf.matmul(self.y_cross_0, self.y_cross, transpose_a=True),shape=[-1, input_size])
-                self.y_cross = tf.add(tf.reshape(tf.matmul(x0T_x_x1, self.weights["cross_layer_%d" % i]),shape=[-1,1,input_size]),
-                                      self.y_cross)
-                self.y_cross = tf.add(self.y_cross, self.weights["cross_bias_%d" % i])
-            self.y_cross = tf.reshape(self.y_cross,shape=[-1, self.cross_wides[0]])
+                x0T_x_x1 = tf.reshape(tf.matmul(self.y_cross_0, self.y_cross_i, transpose_a=True),shape=[-1, input_size])
+                self.y_cross_i = tf.add(tf.reshape(tf.matmul(x0T_x_x1, self.weights["cross_layer_%d" % i]),shape=[-1,1,input_size]),
+                                      self.y_cross_i)
+                self.y_cross_i = tf.add(self.y_cross_i, self.weights["cross_bias_%d" % i])
+                self.y_cross = tf.concat([self.y_cross, tf.reshape(self.y_cross_i,shape=[-1, input_size])], axis=1)
 
             # 4. concatenate y_deep and y_cross
             log("concatenating y_deep and y_cross")
-            concat_input = tf.concat([self.y_cross, self.y_deep], axis=1)
-            self.out = tf.add(tf.matmul(concat_input, self.weights["concat_projection"]), self.weights["concat_bias"])
+            if self.use_deep and self.use_cross:
+                concat_input = tf.concat([self.y_cross, self.y_deep], axis=1)
+                self.out = tf.add(tf.matmul(concat_input, self.weights["concat_projection"]), self.weights["concat_bias"])
+            elif self.use_deep:
+                concat_input = self.y_deep
+                self.out = tf.add(tf.matmul(concat_input, self.weights["concat_projection"]), self.weights["concat_bias"])
+            elif self.use_cross:
+                concat_input = self.y_cross
+                self.out = tf.add(tf.matmul(concat_input, self.weights["concat_projection"]), self.weights["concat_bias"])
 
             # 5. loss
             log("form loss")
@@ -171,7 +183,12 @@ class DeepCrossNetwork(object):
                 dtype=np.float32)
 
         # 4. concat layer
-        input_size = self.dnn_wides[-1] + self.cross_wides[-1]
+        if self.use_deep and self.use_cross:
+            input_size = self.dnn_wides[-1] + self.cross_wides[-1]*(len(self.cross_wides)+1)
+        elif self.use_deep:
+            input_size = self.dnn_wides[-1]
+        elif self.use_cross:
+            input_size = self.cross_wides[-1] * (len(self.cross_wides) +1)
         glorot = np.sqrt(2.0 / (input_size + 1))
         weights["concat_projection"] = tf.Variable(tf.random_normal([input_size, 1], 0.0, glorot), dtype=tf.float32)
         weights["concat_bias"] = tf.Variable(tf.constant(0.01), dtype=np.float32)
@@ -266,7 +283,7 @@ class DeepCrossNetwork(object):
             self.shuffle_in_unison_scale(Xi_train, Xv_train, y_train)
             total_batch = int(len(y_train)/self.batch_size)
             for i in range(total_batch):
-                log("E%sB%s in epochs %s, batchs %s"%(epoch, i, self.epoch, total_batch))
+                # log("E%sB%s in epochs %s, batchs %s"%(epoch, i, self.epoch, total_batch))
                 Xi_batch, Xv_batch, y_batch = self.get_batch(Xi_train, Xv_train, y_train, self.batch_size, i)
                 self.fit_on_batch(Xi_batch, Xv_batch, y_batch)
 
