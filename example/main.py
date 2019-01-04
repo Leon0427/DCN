@@ -76,8 +76,6 @@ if __name__ == '__main__':
         "batch_norm_decay":0.995,
         "l2_reg":0.01,
         "random_seed":2018,
-        "feature_dim":fd.feature_dim,
-        "field_dim":len(Xi_train[0]),
         "verbose":True,
         "use_deep":True,
         "use_cross":True
